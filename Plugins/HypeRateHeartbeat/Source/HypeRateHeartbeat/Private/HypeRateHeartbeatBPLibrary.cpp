@@ -28,7 +28,7 @@ class ExampleAutoDeleteAsyncTask : public FNonAbandonableTask {
                 UHypeRateHeartbeatBPLibrary::Socket->Send("{\"topic\": \"phoenix\",\"event\": \"heartbeat\",\"payload\": {},\"ref\": 0}");
                 UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Ping"));
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(20 * 1000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10 * 1000));
         }
         UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Thread died..."));
     }
