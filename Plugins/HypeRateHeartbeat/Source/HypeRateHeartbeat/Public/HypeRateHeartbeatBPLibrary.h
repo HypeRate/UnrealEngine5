@@ -30,12 +30,10 @@
 UCLASS()
 class UHypeRateHeartbeatBPLibrary : public UBlueprintFunctionLibrary
 {
+
 	GENERATED_UCLASS_BODY()
 
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Execute Sample function", Keywords = "HypeRateHeartbeat sample test testing"), Category = "HypeRateHeartbeatTesting")
-	static float HypeRateHeartbeatSampleFunction(float Param);
-public:
-	UFUNCTION(BlueprintCallable, Category = "Hype Rate")
+		UFUNCTION(BlueprintCallable, Category = "Hype Rate")
 		static void Connect(FString Topic, FString WebsocketKey);
 
 	UFUNCTION(BlueprintCallable, Category = "Hype Rate")
@@ -49,6 +47,4 @@ public:
 	static bool isConnected;
 
 	static TSharedPtr<IWebSocket> Socket;
-
-	static std::thread thr;
 };

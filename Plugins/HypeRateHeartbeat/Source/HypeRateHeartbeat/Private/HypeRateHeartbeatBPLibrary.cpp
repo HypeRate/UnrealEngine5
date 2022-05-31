@@ -4,51 +4,61 @@
 #include "HypeRateHeartbeat.h"
 
 UHypeRateHeartbeatBPLibrary::UHypeRateHeartbeatBPLibrary(const FObjectInitializer& ObjectInitializer)
-: Super(ObjectInitializer)
+    : Super(ObjectInitializer)
 {
 
-}
-
-float UHypeRateHeartbeatBPLibrary::HypeRateHeartbeatSampleFunction(float Param)
-{
-	return -1;
 }
 
 
 bool UHypeRateHeartbeatBPLibrary::isConnected = false;
 int UHypeRateHeartbeatBPLibrary::lastHeartBeat = 80;
 TSharedPtr<IWebSocket> UHypeRateHeartbeatBPLibrary::Socket = nullptr;
-std::thread UHypeRateHeartbeatBPLibrary::thr = std::thread([] {});
+
+class ExampleAutoDeleteAsyncTask : public FNonAbandonableTask {
+    friend class FAutoDeleteAsyncTask<ExampleAutoDeleteAsyncTask>;
+
+    int32 ExampleData;
+
+    ExampleAutoDeleteAsyncTask(int32 InExampleData) : ExampleData(InExampleData) { }
+
+    void DoWork() {
+        while (UHypeRateHeartbeatBPLibrary::isConnected) {
+            UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Ping?"));
+            if (UHypeRateHeartbeatBPLibrary::Socket->IsConnected()) {
+                UHypeRateHeartbeatBPLibrary::Socket->Send("{\"topic\": \"phoenix\",\"event\": \"heartbeat\",\"payload\": {},\"ref\": 0}");
+                UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Ping"));
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(20 * 1000));
+        }
+        UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Thread died..."));
+    }
+
+    FORCEINLINE TStatId GetStatId() const {
+        RETURN_QUICK_DECLARE_CYCLE_STAT(ExampleAutoDeleteAsyncTask, STATGROUP_ThreadPoolAsyncTasks);
+    }
+};
 
 void UHypeRateHeartbeatBPLibrary::Connect(FString Topic, FString WebsocketKey)
 {
     if (isConnected) return;
     isConnected = true;
-    FString ServerURL = FString("wss://app.hyperate.io/socket/websocket?token=" + WebsocketKey);
+    const FString ServerURL = TEXT("wss://app.hyperate.io/socket/websocket?token=" + WebsocketKey);
+    const FString ServerProtocol = TEXT("ws");
+    const TMap<FString, FString> Headers;
 
     UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] URI %s"), *ServerURL);
-    const FString ServerProtocol = TEXT("wss");              // The WebServer protocol you want to use.
 
-    Socket = FWebSocketsModule::Get().CreateWebSocket(ServerURL, ServerProtocol);
-    Socket->OnConnected().AddLambda([&,Topic]() -> void {
+
+    Socket = FWebSocketsModule::Get().CreateWebSocket(ServerURL, ServerProtocol, Headers);
+    Socket->OnConnected().AddLambda([&, Topic]() -> void {
         UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] OnConnected"));
 
         FString s = FString("{\"topic\": \"hr:" + Topic + "\", \"event\": \"phx_join\",\"payload\": {},\"ref\": 0}");
         Socket->Send(s);
-        thr.join();
-        thr = std::thread([] {
-            while (UHypeRateHeartbeatBPLibrary::isConnected) {
-                UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Ping?"));
-                if (UHypeRateHeartbeatBPLibrary::Socket->IsConnected()) {
-                    UHypeRateHeartbeatBPLibrary::Socket->Send("{\"topic\": \"phoenix\",\"event\": \"heartbeat\",\"payload\": {},\"ref\": 0}");
-                    UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Ping"));
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(20 * 1000));
-            }
-            UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Thread died..."));
-            });
-        });
 
+        FAutoDeleteAsyncTask<ExampleAutoDeleteAsyncTask>* Task = new FAutoDeleteAsyncTask<ExampleAutoDeleteAsyncTask>(1);
+        Task->StartBackgroundTask();
+        });
     Socket->OnClosed().AddLambda([](int32 StatusCode, const FString& Reason, bool bWasClean) -> void {
         UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Connection to websocket server has been closed with status code: \"%d\" and reason: \"%s\"."), StatusCode, *Reason);
         });
@@ -75,9 +85,9 @@ void UHypeRateHeartbeatBPLibrary::Connect(FString Topic, FString WebsocketKey)
     Socket->OnConnectionError().AddLambda([](const FString& Error) -> void {
         UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] OnConnectionError %s"), *Error);
         });
+
     Socket->Connect();
 }
-
 
 int UHypeRateHeartbeatBPLibrary::GetHeartBeat()
 {
@@ -90,6 +100,5 @@ void UHypeRateHeartbeatBPLibrary::Disconnect() {
     isConnected = false;
     Socket->Close();
     UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Thread Joining..."));
-    //thr.join();
     UE_LOG(LogTemp, Log, TEXT("[HYPERATE::DEV] Closed"));
 }
